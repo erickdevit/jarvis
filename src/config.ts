@@ -66,6 +66,19 @@ export const BACKEND: 'bridge' | 'direct' = choice(
 )
 
 /**
+ * AI Provider selection for direct browser mode.
+ *   'anthropic' — Anthropic Claude API (default)
+ *   'openai'    — OpenAI Chat Completions API
+ *   'nvidia'    — NVIDIA NIM API (OpenAI-compatible endpoint)
+ */
+export const PROVIDER: 'anthropic' | 'openai' | 'nvidia' = choice(
+  'VITE_PROVIDER',
+  import.meta.env.VITE_PROVIDER,
+  ['anthropic', 'openai', 'nvidia'] as const,
+  'anthropic',
+)
+
+/**
  * Where the bridge lives. Derived once here rather than in each of the three
  * places that talk to it, so moving off the default port is a single edit.
  * `wss://` maps to `https://` on its own, which is why this is a prefix swap
@@ -130,6 +143,10 @@ export const KOKORO_VOICE = choice(
 
 export const env = {
   anthropicKey: str(import.meta.env.VITE_ANTHROPIC_API_KEY) ?? '',
+  openaiKey: str(import.meta.env.VITE_OPENAI_API_KEY) ?? '',
+  nvidiaKey: str(import.meta.env.VITE_NVIDIA_API_KEY) ?? '',
+  openaiModel: str(import.meta.env.VITE_OPENAI_MODEL) ?? 'gpt-4o',
+  nvidiaModel: str(import.meta.env.VITE_NVIDIA_MODEL) ?? 'meta/llama-3.1-70b-instruct',
   elevenKey: str(import.meta.env.VITE_ELEVENLABS_API_KEY) ?? '',
   elevenVoiceId:
     str(import.meta.env.VITE_ELEVENLABS_VOICE_ID) ?? 'JBFqnCBsd6RMkjVDRZzb',
