@@ -99,10 +99,19 @@ function originAllowed(origin) {
 const ALLOW_WRITES = process.env.JARVIS_ALLOW_WRITES === '1'
 
 /**
- * The orchestrator model. Override with JARVIS_MODEL to trade quality for pace
- * — claude-sonnet-5 is noticeably snappier on camera if Opus feels slow.
+ * Provider choice: 'anthropic' (default), 'openai', or 'nvidia'.
  */
-const MODEL = process.env.JARVIS_MODEL ?? 'claude-opus-5'
+const PROVIDER = process.env.JARVIS_PROVIDER ?? 'anthropic'
+
+/**
+ * The orchestrator model.
+ */
+const DEFAULT_MODELS = {
+  anthropic: 'claude-opus-5',
+  openai: 'gpt-4o',
+  nvidia: 'meta/llama-3.1-70b-instruct',
+}
+const MODEL = process.env.JARVIS_MODEL || DEFAULT_MODELS[PROVIDER] || 'claude-opus-5'
 
 /**
  * How hard the model thinks before answering.
@@ -1004,7 +1013,7 @@ console.log(`[jarvis] bridge listening on ws://localhost:${PORT}`)
 console.log(
   `[jarvis] speech ${elevenKey() ? 'via ElevenLabs (key from MCP config)' : 'using browser fallback voice'}`,
 )
-console.log(`[jarvis] model ${MODEL} · effort ${EFFORT}`)
+console.log(`[jarvis] provider ${PROVIDER} · model ${MODEL} · effort ${EFFORT}`)
 console.log(
   `[jarvis] writes ${ALLOW_WRITES ? 'ENABLED' : 'disabled'}` +
     (ALLOW_WRITES ? '' : ' — set JARVIS_ALLOW_WRITES=1 to permit shell/file/device actions'),
@@ -1188,6 +1197,90 @@ wss.on('connection', (socket) => {
     if (name === undefined) return
     heldTools.delete(id)
     if (!failed) sendTurn({ type: 'tool', name })
+  }
+
+  if (PROVIDER === 'openai' || PROVIDER === 'nvidia') {
+    const isNvidia = PROVIDER === 'nvidia'
+    const apiKey = isNvidia ? process.env.NVIDIA_API_KEY : process.env.OPENAI_API_KEY
+    const baseUrl = isNvidia
+      ? 'https://integrate.api.nvidia.com/v1/chat/completions'
+      : 'https://api.openai.com/v1/chat/completions'
+
+    let history = []
+
+    ;(async () => {
+      for await (const userMsg of userMessages()) {
+        history.push({ role: 'user', content: userMsg.message.content })
+        if (!apiKey) {
+          sendTurn({ type: 'text', delta: `No API key configured for bridge ${PROVIDER.toUpperCase()} mode.` })
+          sendTurn({ type: 'done', text: '', costUsd: null })
+          continue
+        }
+
+        try {
+          const response = await fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: MODEL,
+              messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
+              stream: true,
+            }),
+          })
+
+          if (!response.ok) {
+            const errText = await response.text()
+            sendTurn({ type: 'text', delta: `Error from ${PROVIDER}: ${errText}` })
+            sendTurn({ type: 'done', text: '', costUsd: null })
+            continue
+          }
+
+          const reader = response.body.getReader()
+          const decoder = new TextDecoder('utf-8')
+          let buffer = ''
+          let fullText = ''
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() ?? ''
+
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (!trimmed || trimmed.startsWith(':')) continue
+              if (trimmed === 'data: [DONE]') break
+
+              if (trimmed.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(trimmed.slice(6))
+                  const delta = data.choices?.[0]?.delta?.content
+                  if (delta) {
+                    fullText += delta
+                    sendTurn({ type: 'text', delta })
+                  }
+                } catch {}
+              }
+            }
+          }
+
+          history.push({ role: 'assistant', content: fullText })
+          sendTurn({ type: 'done', text: fullText, costUsd: null })
+          finishTurn?.()
+          finishTurn = null
+        } catch (err) {
+          sendTurn({ type: 'error', message: String(err?.message ?? err) })
+          finishTurn?.()
+          finishTurn = null
+        }
+      }
+    })()
+    return
   }
 
   const session = query({

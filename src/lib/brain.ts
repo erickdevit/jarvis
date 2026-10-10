@@ -1,5 +1,6 @@
-import { BACKEND } from '../config'
-import * as direct from './anthropic'
+import { BACKEND, PROVIDER } from '../config'
+import * as directAnthropic from './anthropic'
+import { askOpenAI } from './openai'
 import * as bridge from './bridge'
 import type { AskHandlers, Msg } from './anthropic'
 import type { Blade, Panel } from '../store'
@@ -29,9 +30,13 @@ export async function ask(
   history: Msg[],
   handlers: AskHandlers,
 ): Promise<{ text: string; tools: string[] }> {
-  return usingBridge
-    ? bridge.ask(prompt, handlers)
-    : direct.ask([...history, { role: 'user', content: prompt }], handlers)
+  if (usingBridge) {
+    return bridge.ask(prompt, handlers)
+  }
+  if (PROVIDER === 'openai' || PROVIDER === 'nvidia') {
+    return askOpenAI(PROVIDER, [...history, { role: 'user', content: prompt }], handlers)
+  }
+  return directAnthropic.ask([...history, { role: 'user', content: prompt }], handlers)
 }
 
 export async function warm(): Promise<void> {
@@ -92,7 +97,7 @@ export function watchCapture(
  */
 export function cancel(): void {
   if (usingBridge) bridge.cancel()
-  else direct.cancel()
+  else directAnthropic.cancel()
 }
 
 /** The older name for `cancel()`. */
@@ -127,5 +132,9 @@ export function watchConnection(
 
 /** Labels for the HUD's SYSTEMS rail. */
 export function connectedLabels(): string[] {
-  return usingBridge ? bridge.bridgeServers() : direct.connectedLabels()
+  return usingBridge
+    ? bridge.bridgeServers()
+    : PROVIDER !== 'anthropic'
+      ? [PROVIDER.toUpperCase()]
+      : directAnthropic.connectedLabels()
 }

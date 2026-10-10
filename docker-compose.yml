@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  jarvis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jarvis
+    ports:
+      - "5173:5173"
+      - "8787:8787"
+    environment:
+      - NODE_ENV=production
+      - JARVIS_BRIDGE_PORT=8787
+      - JARVIS_PROVIDER=${JARVIS_PROVIDER:-anthropic}
+      - JARVIS_MODEL=${JARVIS_MODEL:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+      - VITE_BRIDGE_URL=ws://localhost:8787
+    restart: unless-stopped

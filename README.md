@@ -49,6 +49,21 @@ npm install
 npm start          # runs the brain and the face together
 ```
 
+### Running with Docker
+
+JARVIS is fully compatible with Docker and Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+Or build and run the Docker image directly:
+
+```bash
+docker build -t jarvis .
+docker run -p 5173:5173 -p 8787:8787 jarvis
+```
+
 Then open the URL it prints (http://localhost:5173) in **Chrome**, click **INITIALISE**, and say **“Hey Jarvis”**.
 
 Prefer two terminals? Run them separately instead:
@@ -225,7 +240,10 @@ Everything is optional in bridge mode. Frontend settings live in `.env.local`
 | Variable | Default | Effect |
 |---|---|---|
 | `JARVIS_BRIDGE_PORT` | `8787` | Port for the WebSocket + HTTP endpoints |
-| `JARVIS_MODEL` | `claude-opus-5` | Model to run |
+| `JARVIS_PROVIDER` | `anthropic` | Provider to run (`anthropic`, `openai`, or `nvidia`) |
+| `JARVIS_MODEL` | `claude-opus-5` | Model to run (e.g., `gpt-4o`, `meta/llama-3.1-70b-instruct`) |
+| `OPENAI_API_KEY` | — | Required if `JARVIS_PROVIDER=openai` |
+| `NVIDIA_API_KEY` | — | Required if `JARVIS_PROVIDER=nvidia` |
 | `JARVIS_EFFORT` | `medium` | Reasoning effort |
 | `JARVIS_ALLOW_WRITES` | off | `1` allows effectful tools (see below) |
 | `JARVIS_ALLOWED_ORIGINS` | local dev | Extra WebSocket origins to accept |
@@ -239,6 +257,9 @@ Everything is optional in bridge mode. Frontend settings live in `.env.local`
 | Variable | Effect |
 |---|---|
 | `VITE_BACKEND` | `bridge` (default) or `direct` |
+| `VITE_PROVIDER` | `anthropic` (default), `openai`, or `nvidia` (direct mode) |
+| `VITE_OPENAI_API_KEY` | OpenAI API key for direct mode |
+| `VITE_NVIDIA_API_KEY` | NVIDIA API key for direct mode |
 | `VITE_BRIDGE_URL` | Where to reach the bridge |
 | `VITE_TTS_ENGINE` | `system` or `kokoro` |
 | `VITE_KOKORO_VOICE` | Voice for the Kokoro engine |
